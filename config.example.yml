@@ -1,0 +1,11 @@
+server:
+  port: 8080
+  debug: false
+
+database:
+  dialect: "mysql"
+  dbhost: "localhost"
+  dbport: 3306
+  dbname: "ontrack"
+  dbuser: "root"
+  dbpassword: "root"
