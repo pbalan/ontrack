@@ -3,12 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
 	c "github.com/pbalan/ontrack/src/config"
+	"github.com/pbalan/ontrack/src/graph"
+	"github.com/pbalan/ontrack/src/graph/generated"
 	"github.com/pbalan/ontrack/src/models"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"net/http"
 	"os"
 	"strconv"
 )
@@ -89,9 +94,27 @@ func autoMigrateSchema(db *gorm.DB) {
 	db.AutoMigrate(&models.User{})
 }
 
+func startServer(db *gorm.DB) {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = strconv.FormatInt(int64(configuration.Server.Port), 10)
+	}
+
+	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
+		DB: db,
+	}}))
+
+	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	http.Handle("/query", srv)
+
+	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
 func main() {
 	initEnv()
 	initLogger()
 	db := initDb()
 	autoMigrateSchema(db)
+	startServer(db)
 }
