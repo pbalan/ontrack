@@ -4,14 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	c "github.com/pbalan/ontrack/src/config"
+	"github.com/pbalan/ontrack/src/models"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 	"os"
+	"strconv"
 )
 
-func initLogger() {
-	// ########## Init Viper
-	var vpr = viper.New()
+var Db *gorm.DB
+var configuration c.Configurations
+var vpr = viper.New()
+
+func initEnv() {
 	// Set the file name of the configurations file
 	vpr.SetConfigName("config")
 	// Set the path to look for the configurations file
@@ -19,8 +25,6 @@ func initLogger() {
 	// Enable VIPER to read Environment Variables
 	vpr.AutomaticEnv()
 	vpr.SetConfigType("yml")
-
-	var configuration c.Configurations
 
 	if err := vpr.ReadInConfig(); err != nil {
 		fmt.Printf("Error reading config file, %s", err)
@@ -30,7 +34,9 @@ func initLogger() {
 	if err != nil {
 		fmt.Printf("Unable to decode into struct, %v", err)
 	}
+}
 
+func initLogger() {
 	// You could set this to any `io.Writer` such as a file
 	file, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
@@ -56,6 +62,36 @@ func initLogger() {
 	}
 }
 
+func initDb() *gorm.DB {
+	Db = connectDB()
+	return Db
+}
+
+func connectDB() *gorm.DB {
+	var err error
+	dsn := configuration.Database.DBUser + ":" + string(configuration.Database.DBPassword) +
+		"@tcp" + "(" + configuration.Database.DBHost + ":" +
+		strconv.FormatInt(int64(configuration.Database.DBPort), 10) + ")/" +
+		configuration.Database.DBName + "?" + "parseTime=true&loc=Local"
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
+	if err != nil {
+		log.Println("Error connecting to database : error=%v", err)
+		log.Println(dsn)
+		return nil
+	}
+
+	return db
+}
+
+func autoMigrateSchema(db *gorm.DB) {
+	db.AutoMigrate(&models.User{})
+}
+
 func main() {
+	initEnv()
 	initLogger()
+	db := initDb()
+	autoMigrateSchema(db)
 }
