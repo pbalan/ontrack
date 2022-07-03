@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	c "github.com/pbalan/ontrack/src/config"
+	"github.com/pbalan/ontrack/src/graph/model"
+	"gorm.io/gorm"
 	"time"
 
 	"github.com/golang-jwt/jwt"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+	"github.com/twinj/uuid"
 )
 
 type JwtCustomClaim struct {
@@ -18,6 +21,7 @@ type JwtCustomClaim struct {
 }
 
 var jwtSecret = []byte(getJwtSecret())
+var jwtRefreshSecret = []byte(getRefreshSecret())
 var configuration c.Configurations
 
 func getJwtSecret() string {
@@ -32,21 +36,73 @@ func getJwtSecret() string {
 	return string(secret)
 }
 
-func JwtGenerate(ctx context.Context, userID string) (string, error) {
-	t := jwt.NewWithClaims(jwt.SigningMethodHS256, &JwtCustomClaim{
-		ID: userID,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Hour * 72).Unix(),
-			IssuedAt:  time.Now().Unix(),
-		},
-	})
-
-	token, err := t.SignedString(jwtSecret)
+func getRefreshSecret() string {
+	err := viper.Unmarshal(&configuration)
 	if err != nil {
-		return "", err
+		fmt.Printf("Unable to decode into struct, %v", err)
+	}
+	refreshSecret, _ := json.Marshal(configuration.Jwt.RefreshSecret)
+	if string(refreshSecret) == "" {
+		log.Fatal("JWT_REFRESH_SECRET not configured")
+	}
+	return string(refreshSecret)
+}
+
+func JwtGenerate(ctx context.Context, userID string) (*model.TokenDetail, error) {
+	td := &model.TokenDetail{}
+	td.AtValidUpto = time.Now().Add(time.Minute * 15).Unix()
+	td.AccessUUID = uuid.NewV4().String()
+
+	td.RtValidUpto = time.Now().Add(time.Hour * 24 * 7).Unix()
+	td.RefreshUUID = uuid.NewV4().String()
+
+	var err error
+	atClaims := jwt.MapClaims{}
+	atClaims["authorized"] = true
+	atClaims["access_uuid"] = td.AccessUUID
+	atClaims["user_id"] = userID
+	atClaims["exp"] = td.AtValidUpto
+	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
+	td.AccessToken, err = at.SignedString(jwtSecret)
+	if err != nil {
+		return nil, err
 	}
 
-	return token, nil
+	rtClaims := jwt.MapClaims{}
+	rtClaims["refresh_uuid"] = td.RefreshUUID
+	rtClaims["user_id"] = userID
+	rtClaims["exp"] = td.RtValidUpto
+	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
+	td.RefreshToken, err = rt.SignedString(jwtRefreshSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	return td, nil
+}
+
+func SaveAuth(db *gorm.DB, td *model.TokenDetail) (Token *model.TokenDetail, err error) {
+	err = db.Create(&td).Error
+
+	if err != nil {
+		return td, err
+	}
+
+	return td, nil
+}
+
+func VerifyAuth(db *gorm.DB, userId uint64, td *model.TokenDetail) (exists bool, err error) {
+	err = db.Where(
+		"refresh_token = ? AND refresh_uuid = ? AND rt_valid_upto >= ?",
+		td.RefreshToken,
+		userId,
+		time.Now().Unix()).First(&td).Error
+
+	if err != nil {
+		return true, err
+	}
+
+	return false, nil
 }
 
 func JwtValidate(ctx context.Context, token string) (*jwt.Token, error) {

@@ -25,7 +25,8 @@ type DatabaseConfigurations struct {
 }
 
 type JwtConfigurations struct {
-	Secret string `json:"secret"`
+	Secret        string `json:"secret"`
+	RefreshSecret string `json:"refreshSecret"`
 }
 
 // Marshaler ignores the field value completely.

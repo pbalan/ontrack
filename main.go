@@ -91,7 +91,7 @@ func connectDB() *gorm.DB {
 }
 
 func autoMigrateSchema(db *gorm.DB) {
-	db.AutoMigrate(&models.User{})
+	db.AutoMigrate(&models.User{}, &models.TokenDetail{})
 }
 
 func startServer(db *gorm.DB) {
