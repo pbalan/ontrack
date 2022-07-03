@@ -6,7 +6,7 @@ type password string
 type Configurations struct {
 	Server   ServerConfigurations
 	Database DatabaseConfigurations
-	Logging  LoggingConfigurations
+	Jwt      JwtConfigurations
 }
 
 // ServerConfigurations exported
@@ -24,8 +24,8 @@ type DatabaseConfigurations struct {
 	DBPassword password `json:"db_password"`
 }
 
-type LoggingConfigurations struct {
-	Main map[string]interface{} `json:"main"`
+type JwtConfigurations struct {
+	Secret string `json:"secret"`
 }
 
 // Marshaler ignores the field value completely.

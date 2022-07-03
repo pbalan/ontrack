@@ -1,5 +1,9 @@
 # GraphQL schema example
 
+directive @goField(forceResolver: Boolean, name: String) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+
+scalar Any
+
 type User {
   id: ID!
   username: String!
@@ -23,5 +27,6 @@ input NewUser {
 }
 
 type Mutation {
-  registerUser(input: NewUser!): User!
+  registerUser(input: NewUser!): Any! @goField(forceResolver: true)
+  login(username: String, email: String, password: String!): Any! @goField(forceResolver: true)
 }
