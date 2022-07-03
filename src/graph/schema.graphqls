@@ -14,6 +14,16 @@ type User {
   nick_name:  String
 }
 
+type TokenDetail {
+  id: ID!
+  access_token: String!
+  refresh_token: String!
+  access_uuid: String!
+  refresh_uuid: String!
+  at_valid_upto: Int!
+  rt_valid_upto: Int!
+}
+
 type Query {
   users: [User!]!
 }

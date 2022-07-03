@@ -43,14 +43,12 @@ func (r *mutationResolver) RegisterUser(ctx context.Context, input model.NewUser
 		return nil, err
 	}
 
-	token, err := services.JwtGenerate(ctx, strconv.FormatInt(createdUser.ID, 10))
+	tokenPair, err := services.JwtGenerate(ctx, strconv.FormatInt(createdUser.ID, 10))
 	if err != nil {
 		return nil, err
 	}
 
-	return map[string]interface{}{
-		"token": token,
-	}, nil
+	return tokenPair, nil
 }
 
 func (r *mutationResolver) Login(ctx context.Context, username *string, email *string, password string) (interface{}, error) {
@@ -82,13 +80,19 @@ func (r *mutationResolver) Login(ctx context.Context, username *string, email *s
 		return nil, errors.New("unable to login")
 	}
 
-	token, err := services.JwtGenerate(ctx, strconv.FormatInt(getUser.ID, 10))
+	tokenPair, err := services.JwtGenerate(ctx, strconv.FormatInt(getUser.ID, 10))
 	if err != nil {
 		return nil, err
 	}
 
-	return map[string]interface{}{
-		"token": token,
+	tokenDetail, err := services.SaveAuth(r.DB, tokenPair)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		"access_token":  tokenDetail.AccessToken,
+		"refresh_token": tokenDetail.RefreshToken,
 	}, nil
 }
 
